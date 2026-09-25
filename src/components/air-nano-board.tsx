@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -156,13 +156,13 @@ export function AirNanoBoard({ requestedThreadId }: { requestedThreadId?: string
     if (tool === "chat") window.requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
-  const startDragging = (cardId: string, event: React.PointerEvent<HTMLButtonElement>) => {
+  const startDragging = (cardId: string, event: PointerEvent<HTMLButtonElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     setDraggingCard(cardId);
     setSelectedCards([cardId]);
   };
 
-  const moveCard = (cardId: string, event: React.PointerEvent<HTMLButtonElement>) => {
+  const moveCard = (cardId: string, event: PointerEvent<HTMLButtonElement>) => {
     if (draggingCard !== cardId) return;
     setDragOffsets((current) => ({
       ...current,
