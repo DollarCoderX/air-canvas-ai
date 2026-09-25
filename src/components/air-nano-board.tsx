@@ -96,6 +96,9 @@ export function AirNanoBoard({ requestedThreadId }: { requestedThreadId?: string
   const [prompt, setPrompt] = useState("");
   const [zoom, setZoom] = useState(100);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [selectedCards, setSelectedCards] = useState<string[]>(["onboarding"]);
+  const [dragOffsets, setDragOffsets] = useState<Record<string, { x: number; y: number }>>({});
+  const [draggingCard, setDraggingCard] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -151,6 +154,23 @@ export function AirNanoBoard({ requestedThreadId }: { requestedThreadId?: string
   const selectTool = (tool: Tool) => {
     setActiveTool(tool);
     if (tool === "chat") window.requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const startDragging = (cardId: string, event: React.PointerEvent<HTMLButtonElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDraggingCard(cardId);
+    setSelectedCards([cardId]);
+  };
+
+  const moveCard = (cardId: string, event: React.PointerEvent<HTMLButtonElement>) => {
+    if (draggingCard !== cardId) return;
+    setDragOffsets((current) => ({
+      ...current,
+      [cardId]: {
+        x: (current[cardId]?.x ?? 0) + event.movementX,
+        y: (current[cardId]?.y ?? 0) + event.movementY,
+      },
+    }));
   };
 
   const currentMessages = activeThread?.messages ?? [];
@@ -212,9 +232,12 @@ export function AirNanoBoard({ requestedThreadId }: { requestedThreadId?: string
           <button
             key={card.id}
             type="button"
-            onClick={() => { setSelectedCard(card.title); setActiveTool("edit"); }}
+            onClick={() => { if (!draggingCard) { setSelectedCard(card.title); setSelectedCards([card.id]); setActiveTool("edit"); } }}
+            onPointerDown={(event) => startDragging(card.id, event)}
+            onPointerMove={(event) => moveCard(card.id, event)}
+            onPointerUp={() => setDraggingCard(null)}
             className={`air-rise glass-card absolute ${card.position} w-60 rounded-3xl p-5 text-left shadow-soft ring-1 ring-glass-border transition-transform duration-300 hover:-translate-y-1 sm:w-64 ${selectedCard === card.title ? "ring-2 ring-softblue" : ""}`}
-            style={{ animationDelay: `${index * 80}ms` }}
+            style={{ animationDelay: `${index * 80}ms`, translate: `${dragOffsets[card.id]?.x ?? 0}px ${dragOffsets[card.id]?.y ?? 0}px` }}
           >
             <div className="flex items-center justify-between">
               <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${card.tone === "accent" ? "text-accent" : card.tone === "blue" ? "text-softblue" : "text-ink"}`}>{card.label}</span>
@@ -227,7 +250,7 @@ export function AirNanoBoard({ requestedThreadId }: { requestedThreadId?: string
 
         <button
           type="button"
-          onClick={() => { setSelectedCard("Onboarding flow v3"); setActiveTool("edit"); }}
+          onClick={() => { setSelectedCard("Onboarding flow v3"); setSelectedCards(["onboarding"]); setActiveTool("edit"); }}
           className={`absolute left-[40%] top-[52%] w-56 rounded-3xl bg-softblue/10 p-5 text-left transition-shadow ${selectedCard === "Onboarding flow v3" ? "ring-2 ring-softblue" : "ring-1 ring-softblue/30"}`}
           aria-label="Select onboarding flow card"
         >
@@ -249,6 +272,20 @@ export function AirNanoBoard({ requestedThreadId }: { requestedThreadId?: string
           <p className="text-sm font-bold">Ink · 2px · warm</p>
         </div>
       </div>
+
+      {activeTool === "edit" && (
+        <div className="absolute left-6 top-[62%] z-20 flex items-center gap-2 rounded-2xl glass-surface px-3 py-2 shadow-glass ring-1 ring-glass-border">
+          <span className="text-[11px] font-semibold text-cool">{selectedCards.length === 4 ? "4 objects selected" : "1 object selected"}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedCards(selectedCards.length === 4 ? [] : ["capture", "chat", "transform", "onboarding"])}
+            className="h-7 rounded-xl px-2 text-[11px] text-softblue"
+          >
+            {selectedCards.length === 4 ? "Clear" : "Select all"}
+          </Button>
+        </div>
+      )}
 
       {activeTool === "settings" && (
         <aside className="absolute right-6 top-20 z-30 w-[min(18rem,calc(100vw-3rem))] rounded-[28px] glass-surface p-5 shadow-glass ring-1 ring-glass-border">
