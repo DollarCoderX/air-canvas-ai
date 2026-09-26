@@ -7,11 +7,31 @@ export type BoardMessage = {
   createdAt: string;
 };
 
+export type BoardCard = {
+  id: string;
+  kind: "note" | "task" | "heading";
+  title: string;
+  body: string;
+  x: number;
+  y: number;
+  color: "white" | "yellow" | "blue" | "green";
+  done?: boolean;
+};
+
+export type BoardStroke = {
+  id: string;
+  points: { x: number; y: number }[];
+  color: "ink" | "blue" | "red";
+  width: number;
+};
+
 export type BoardThread = {
   id: string;
   title: string;
   updatedAt: string;
   messages: BoardMessage[];
+  cards: BoardCard[];
+  strokes: BoardStroke[];
 };
 
 export const THREADS_KEY = "air-nano-board.threads";
@@ -29,18 +49,37 @@ export function makeMessage(role: BoardRole, text: string): BoardMessage {
   };
 }
 
-export function createThread(): BoardThread {
+export function createThread(template: "blank" | "meeting" | "lesson" | "project" = "blank"): BoardThread {
   const now = new Date().toISOString();
+  const presets: Record<string, { name: string; cards: Array<Pick<BoardCard, "kind" | "title" | "body" | "color">> }> = {
+    blank: { name: "Untitled board", cards: [] },
+    meeting: { name: "Team meeting", cards: [
+      { kind: "heading", title: "Team meeting", body: "Date · Attendees · Goal", color: "white" },
+      { kind: "note", title: "Agenda", body: "1. Updates\n2. Decisions\n3. Next steps", color: "yellow" },
+      { kind: "note", title: "Decisions", body: "Record what was agreed and why.", color: "blue" },
+      { kind: "task", title: "Follow up", body: "Owner · Due date", color: "green" },
+    ] },
+    lesson: { name: "Lesson plan", cards: [
+      { kind: "heading", title: "Lesson plan", body: "Subject · Class · Date", color: "white" },
+      { kind: "note", title: "Learning objectives", body: "By the end of class, students will…", color: "yellow" },
+      { kind: "note", title: "Activities", body: "Warm-up\nPractice\nDiscussion", color: "blue" },
+      { kind: "task", title: "Assessment", body: "How will you check understanding?", color: "green" },
+    ] },
+    project: { name: "Project plan", cards: [
+      { kind: "heading", title: "Project plan", body: "Outcome · Timeline · Team", color: "white" },
+      { kind: "note", title: "Scope", body: "What is in and out of scope?", color: "yellow" },
+      { kind: "task", title: "First milestone", body: "Owner · Due date", color: "green" },
+      { kind: "note", title: "Risks & questions", body: "Capture unknowns here.", color: "blue" },
+    ] },
+  };
+  const preset = presets[template];
   return {
     id: makeThreadId(),
-    title: "Untitled ideas",
+    title: preset.name,
     updatedAt: now,
-    messages: [
-      makeMessage(
-        "assistant",
-        "I’m Nano. Select a card, sketch an idea, or ask me to reshape the board.",
-      ),
-    ],
+    messages: [],
+    cards: preset.cards.map((card, index) => ({ ...card, id: makeThreadId(), x: 80 + (index % 2) * 310, y: 100 + Math.floor(index / 2) * 230 })),
+    strokes: [],
   };
 }
 
@@ -51,7 +90,12 @@ export function readThreads(): BoardThread[] {
     const stored = window.localStorage.getItem(THREADS_KEY);
     if (!stored) return [];
     const parsed = JSON.parse(stored) as BoardThread[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map((thread) => ({
+      ...thread,
+      cards: Array.isArray(thread.cards) ? thread.cards : [],
+      strokes: Array.isArray(thread.strokes) ? thread.strokes : [],
+      messages: Array.isArray(thread.messages) ? thread.messages : [],
+    })) : [];
   } catch {
     return [];
   }
@@ -72,18 +116,4 @@ export function ensureThreads() {
 
 export function findThread(threadId: string) {
   return readThreads().find((thread) => thread.id === threadId);
-}
-
-export function nanoReply(prompt: string, selectedLabel: string | null) {
-  const normalized = prompt.toLowerCase();
-  if (normalized.includes("summar")) {
-    return "I see three themes: make the canvas tactile, keep the tools close, and let Nano turn loose thoughts into clear next steps.";
-  }
-  if (normalized.includes("calm") || normalized.includes("simpl")) {
-    return "Try one primary action per card, more breathing room between clusters, and a single accent color for decisions.";
-  }
-  if (selectedLabel) {
-    return `I can transform “${selectedLabel}” into a tighter brief, a task list, or a visual cluster. Which direction should I take?`;
-  }
-  return "Try asking me to summarize the board, group the ideas, or turn a selection into a next-step plan.";
 }
